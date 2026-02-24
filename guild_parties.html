@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Raid Planner – Perfect Nameplates with Copy</title>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: white;
+        min-height: 100vh;
+    }
+    .top {
+        min-height: 50vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 24px;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .bottom {
+        min-height: 50vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 20px;
+        border-top: 2px solid #333;
+        background: #0d0d0d;
+    }
+    .party {
+        width: 200px;
+        background: #1e1e1e;
+        border: 2px solid #444;
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .party h3 {
+        text-align: center;
+        margin: 0 0 6px 0;
+        font-size: 15px;
+        color: #aaa;
+        font-weight: normal;
+    }
+    .slot {
+        flex: 1;
+        min-height: 38px;
+        background: #252525;
+        border: 1px dashed #444;
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+    }
+    .ghost {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #888;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+        text-shadow: 0 0 3px rgba(0,0,0,0.9);
+        pointer-events: none;
+        opacity: 0.75;
+        text-align: center;
+        padding: 0 8px;
+        box-sizing: border-box;
+        z-index: 1;
+    }
+    .player {
+        background: #2ecc71;
+        color: black;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        cursor: grab;
+        user-select: none;
+        white-space: nowrap;
+        touch-action: manipulation;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .player.in-slot {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0 8px;
+        border-radius: 0;
+        background: rgba(231, 76, 60, 0.92);
+        color: white;
+        font-weight: bold;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        cursor: default;
+        box-shadow: none;
+        z-index: 2;
+    }
+    #playerArea {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        max-width: 90%;
+        justify-content: center;
+        margin-top: 24px;
+    }
+    textarea {
+        width: 340px;
+        height: 140px;
+        padding: 12px;
+        font-size: 15px;
+        background: #1a1a1a;
+        color: #eee;
+        border: 1px solid #555;
+        border-radius: 8px;
+        resize: vertical;
+        font-family: inherit;
+        margin-bottom: 16px;
+    }
+    textarea::placeholder {
+        color: #777;
+    }
+    button#copyButton {
+        margin-top: 20px;
+        padding: 12px 28px;
+        font-size: 16px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    button#copyButton:hover {
+        background: #2980b9;
+    }
+    button#copyButton:active {
+        background: #1f6391;
+    }
+</style>
+</head>
+<body>
+
+<div class="top" id="partyArea"></div>
+
+<div class="bottom">
+    <textarea id="inputBox" placeholder="Paste raid member names here, one per line..."></textarea>
+    <div id="playerArea"></div>
+    
+    <button id="copyButton">Copy Raid Setup</button>
+</div>
+
+<script>
+const PARTY_NAMES = [
+    ["Perszing", "Zouri - Tourist", "Agabun", "_awa_", "lxi_lxzn", "try2tank"],
+    ["Katherelia", "Azurablood", "Connorz", "AriaStarsXnico", "RedViper", "Sorrow"],
+    ["Iceplay", "duuko", "Kushheart", "Welgian", "RobeGin", "Vamadov"],
+    ["Janez", "Kalli", "Ceyshh", "MoyMayKusaaay", "Freakuencyy", "SungyTheShadow"],
+    [], []
+];
+
+const partyArea  = document.getElementById("partyArea");
+const playerArea = document.getElementById("playerArea");
+const inputBox   = document.getElementById("inputBox");
+const copyButton = document.getElementById("copyButton");
+
+let draggedPlayer = null;
+
+// Create parties + slots
+for (let p = 0; p < 6; p++) {
+    const party = document.createElement("div");
+    party.className = "party";
+    party.dataset.partyIndex = p;
+    
+    const title = document.createElement("h3");
+    title.textContent = `Party ${p + 1}`;
+    party.appendChild(title);
+
+    for (let i = 0; i < 6; i++) {
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        slot.dataset.slotIndex = i;
+
+        const ghost = document.createElement("div");
+        ghost.className = "ghost";
+        ghost.textContent = PARTY_NAMES[p][i] || "—";
+        slot.appendChild(ghost);
+
+        slot.addEventListener("dragover", e => e.preventDefault());
+
+        slot.addEventListener("drop", e => {
+            e.preventDefault();
+            if (!draggedPlayer) return;
+
+            if (draggedPlayer.parentElement === playerArea) {
+                playerArea.removeChild(draggedPlayer);
+            } else if (draggedPlayer.parentElement.classList.contains("slot")) {
+                draggedPlayer.parentElement.removeChild(draggedPlayer);
+            }
+
+            const existing = slot.querySelector(".player");
+            if (existing) {
+                existing.classList.remove("in-slot");
+                existing.style.cssText = "";
+                slot.removeChild(existing);
+                playerArea.appendChild(existing);
+            }
+
+            draggedPlayer.classList.add("in-slot");
+            draggedPlayer.style.cssText = "";
+            slot.appendChild(draggedPlayer);
+
+            draggedPlayer = null;
+        });
+
+        slot.addEventListener("dblclick", () => {
+            const bubble = slot.querySelector(".player");
+            if (!bubble) return;
+            bubble.classList.remove("in-slot");
+            bubble.style.cssText = "";
+            slot.removeChild(bubble);
+            playerArea.appendChild(bubble);
+        });
+
+        party.appendChild(slot);
+    }
+    partyArea.appendChild(party);
+}
+
+// Bottom drop zone
+playerArea.addEventListener("dragover", e => e.preventDefault());
+playerArea.addEventListener("drop", e => {
+    e.preventDefault();
+    if (!draggedPlayer) return;
+
+    if (draggedPlayer.parentElement.classList.contains("slot")) {
+        draggedPlayer.parentElement.removeChild(draggedPlayer);
+    }
+
+    draggedPlayer.classList.remove("in-slot");
+    draggedPlayer.style.cssText = "";
+    playerArea.appendChild(draggedPlayer);
+    draggedPlayer = null;
+});
+
+// Generate players
+function generatePlayers() {
+    playerArea.innerHTML = "";
+    const text = inputBox.value.trim();
+    if (!text) return;
+
+    const names = text.split("\n")
+        .map(n => n.trim())
+        .filter(n => n.length > 0);
+
+    names.sort((a,b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+
+    names.forEach(name => {
+        const div = document.createElement("div");
+        div.className = "player";
+        div.textContent = name;
+        div.draggable = true;
+
+        div.addEventListener("dragstart", e => {
+            draggedPlayer = div;
+            setTimeout(() => { div.style.display = "none"; }, 0);
+        });
+
+        div.addEventListener("dragend", () => {
+            div.style.display = "";
+            draggedPlayer = null;
+        });
+
+        playerArea.appendChild(div);
+    });
+}
+
+inputBox.addEventListener("input", generatePlayers);
+
+// Copy button logic
+copyButton.addEventListener("click", () => {
+    const parties = document.querySelectorAll(".party");
+    let output = "";
+
+    parties.forEach((party, p) => {
+        const partyNum = p + 1;
+        output += `Party ${partyNum}:\n`;
+
+        const slots = party.querySelectorAll(".slot");
+        slots.forEach(slot => {
+            const player = slot.querySelector(".player.in-slot");
+            if (player) {
+                output += player.textContent.trim() + "\n";
+            } else {
+                // fallback to ghost
+                const ghost = slot.querySelector(".ghost");
+                if (ghost && ghost.textContent !== "—") {
+                    output += ghost.textContent.trim() + "\n";
+                } else {
+                    output += "—\n";  // or leave empty line: output += "\n"
+                }
+            }
+        });
+
+        output += "\n";  // empty line between parties
+    });
+
+    // Remove trailing empty lines if you want
+    output = output.trimEnd();
+
+    navigator.clipboard.writeText(output)
+        .then(() => {
+            copyButton.textContent = "Copied!";
+            setTimeout(() => { copyButton.textContent = "Copy Raid Setup"; }, 1800);
+        })
+        .catch(err => {
+            console.error("Copy failed", err);
+            alert("Could not copy to clipboard.\n\n" + output);
+        });
+});
+</script>
+</body>
+</html>
