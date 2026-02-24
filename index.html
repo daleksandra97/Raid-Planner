@@ -57,6 +57,7 @@
         border-radius: 6px;
         position: relative;
         overflow: hidden;
+        cursor: pointer; /* better feedback on mobile */
     }
     .ghost {
         position: absolute;
@@ -88,6 +89,10 @@
         touch-action: manipulation;
         box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
+    .player.selected {
+        background: #f1c40f; /* yellow highlight when selected on mobile */
+        box-shadow: 0 0 12px #f1c40f80;
+    }
     .player.in-slot {
         position: absolute;
         inset: 0;
@@ -104,7 +109,7 @@
         align-items: center;
         justify-content: center;
         text-align: center;
-        cursor: default;
+        cursor: pointer; /* allow tap to return on mobile */
         box-shadow: none;
         z-index: 2;
     }
@@ -146,9 +151,6 @@
     button#copyButton:hover {
         background: #2980b9;
     }
-    button#copyButton:active {
-        background: #1f6391;
-    }
 </style>
 </head>
 <body>
@@ -162,8 +164,9 @@
     <button id="copyButton">Copy Raid Setup</button>
 </div>
 
-<!-- Polyfill to make HTML5 drag & drop work better on mobile/touch devices -->
-<script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.3.1/DragDropTouch.min.js"></script>
+<script>
+// Polyfill (keep for desktop fallback / partial mobile support)
+<script src="https://bernardo-castilho.github.io/DragDropTouch/DragDropTouch.js"></script>
 
 <script>
 const PARTY_NAMES = [
@@ -180,12 +183,14 @@ const inputBox   = document.getElementById("inputBox");
 const copyButton = document.getElementById("copyButton");
 
 let draggedPlayer = null;
+let selectedPlayer = null; // for mobile tap mode
 
-// Create parties + slots with permanent ghosts
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+// ── Create parties + slots ────────────────────────────────────────────────
 for (let p = 0; p < 6; p++) {
     const party = document.createElement("div");
     party.className = "party";
-    party.dataset.partyIndex = p;
     
     const title = document.createElement("h3");
     title.textContent = `Party ${p + 1}`;
@@ -194,71 +199,55 @@ for (let p = 0; p < 6; p++) {
     for (let i = 0; i < 6; i++) {
         const slot = document.createElement("div");
         slot.className = "slot";
-        slot.dataset.slotIndex = i;
 
         const ghost = document.createElement("div");
         ghost.className = "ghost";
         ghost.textContent = PARTY_NAMES[p][i] || "—";
         slot.appendChild(ghost);
 
+        // Desktop drag & drop
         slot.addEventListener("dragover", e => e.preventDefault());
 
         slot.addEventListener("drop", e => {
             e.preventDefault();
             if (!draggedPlayer) return;
-
-            if (draggedPlayer.parentElement === playerArea) {
-                playerArea.removeChild(draggedPlayer);
-            } else if (draggedPlayer.parentElement.classList.contains("slot")) {
-                draggedPlayer.parentElement.removeChild(draggedPlayer);
-            }
-
-            const existing = slot.querySelector(".player");
-            if (existing) {
-                existing.classList.remove("in-slot");
-                existing.style.cssText = "";
-                slot.removeChild(existing);
-                playerArea.appendChild(existing);
-            }
-
-            draggedPlayer.classList.add("in-slot");
-            draggedPlayer.style.cssText = "";
-            slot.appendChild(draggedPlayer);
-
-            draggedPlayer = null;
+            movePlayerToSlot(draggedPlayer, slot);
         });
 
-        slot.addEventListener("dblclick", () => {
-            const bubble = slot.querySelector(".player");
-            if (!bubble) return;
-            bubble.classList.remove("in-slot");
-            bubble.style.cssText = "";
-            slot.removeChild(bubble);
-            playerArea.appendChild(bubble);
+        // Mobile tap to place / swap
+        slot.addEventListener("click", () => {
+            if (!isTouchDevice) return; // desktop keeps drag only
+            if (selectedPlayer) {
+                movePlayerToSlot(selectedPlayer, slot);
+                clearSelection();
+            }
         });
+
+        // Double-click or tap assigned name → return to bottom (works on both)
+        slot.addEventListener("dblclick", ejectFromSlot);
+        if (isTouchDevice) {
+            slot.addEventListener("click", e => {
+                const bubble = slot.querySelector(".player.in-slot");
+                if (bubble && e.target === bubble) {
+                    ejectFromSlot();
+                }
+            });
+        }
 
         party.appendChild(slot);
     }
     partyArea.appendChild(party);
 }
 
-// Bottom drop zone – return to list
+// Bottom area drop (desktop)
 playerArea.addEventListener("dragover", e => e.preventDefault());
 playerArea.addEventListener("drop", e => {
     e.preventDefault();
     if (!draggedPlayer) return;
-
-    if (draggedPlayer.parentElement.classList.contains("slot")) {
-        draggedPlayer.parentElement.removeChild(draggedPlayer);
-    }
-
-    draggedPlayer.classList.remove("in-slot");
-    draggedPlayer.style.cssText = "";
-    playerArea.appendChild(draggedPlayer);
-    draggedPlayer = null;
+    returnToBottom(draggedPlayer);
 });
 
-// Generate players from textarea
+// ── Player generation ─────────────────────────────────────────────────────
 function generatePlayers() {
     playerArea.innerHTML = "";
     const text = inputBox.value.trim();
@@ -274,8 +263,9 @@ function generatePlayers() {
         const div = document.createElement("div");
         div.className = "player";
         div.textContent = name;
-        div.draggable = true;
+        div.draggable = true; // desktop
 
+        // Desktop drag
         div.addEventListener("dragstart", e => {
             draggedPlayer = div;
             setTimeout(() => { div.style.display = "none"; }, 0);
@@ -286,21 +276,88 @@ function generatePlayers() {
             draggedPlayer = null;
         });
 
+        // Mobile tap to select
+        if (isTouchDevice) {
+            div.addEventListener("click", e => {
+                e.stopPropagation();
+                if (selectedPlayer === div) {
+                    clearSelection();
+                } else {
+                    clearSelection();
+                    selectedPlayer = div;
+                    div.classList.add("selected");
+                }
+            });
+        }
+
         playerArea.appendChild(div);
     });
 }
 
 inputBox.addEventListener("input", generatePlayers);
 
-// Copy only actually placed players (ignores ghosts)
+// ── Helper functions ──────────────────────────────────────────────────────
+function movePlayerToSlot(player, slot) {
+    // Remove from current location
+    const oldParent = player.parentElement;
+    if (oldParent === playerArea) {
+        playerArea.removeChild(player);
+    } else if (oldParent.classList.contains("slot")) {
+        oldParent.removeChild(player);
+    }
+
+    // Eject existing if any (send back to bottom)
+    const existing = slot.querySelector(".player");
+    if (existing) {
+        existing.classList.remove("in-slot");
+        existing.style.cssText = "";
+        slot.removeChild(existing);
+        playerArea.appendChild(existing);
+    }
+
+    // Place
+    player.classList.add("in-slot");
+    player.style.cssText = "";
+    slot.appendChild(player);
+
+    clearSelection();
+}
+
+function ejectFromSlot() {
+    const slot = this; // clicked slot
+    const bubble = slot.querySelector(".player.in-slot");
+    if (!bubble) return;
+    bubble.classList.remove("in-slot");
+    bubble.style.cssText = "";
+    slot.removeChild(bubble);
+    playerArea.appendChild(bubble);
+    clearSelection();
+}
+
+function returnToBottom(player) {
+    if (player.parentElement.classList.contains("slot")) {
+        player.parentElement.removeChild(player);
+    }
+    player.classList.remove("in-slot");
+    player.style.cssText = "";
+    playerArea.appendChild(player);
+    clearSelection();
+}
+
+function clearSelection() {
+    if (selectedPlayer) {
+        selectedPlayer.classList.remove("selected");
+        selectedPlayer = null;
+    }
+}
+
+// Copy (only placed players)
 copyButton.addEventListener("click", () => {
     const parties = document.querySelectorAll(".party");
     let output = "";
 
     parties.forEach((party, p) => {
-        const partyNum = p + 1;
-        output += `Party ${partyNum}:\n`;
-
+        output += `Party ${p + 1}:\n`;
         const slots = party.querySelectorAll(".slot");
         let hasAny = false;
 
@@ -310,29 +367,23 @@ copyButton.addEventListener("click", () => {
                 output += player.textContent.trim() + "\n";
                 hasAny = true;
             } else {
-                output += "\n";  // empty line for unfilled slots
+                output += "\n";
             }
         });
 
-        if (hasAny) {
-            output += "\n";
-        } else {
-            output += "— empty —\n\n";
-        }
+        if (hasAny) output += "\n";
+        else output += "— empty —\n\n";
     });
 
     output = output.trimEnd();
 
-    navigator.clipboard.writeText(output)
-        .then(() => {
-            const original = copyButton.textContent;
-            copyButton.textContent = "Copied!";
-            setTimeout(() => { copyButton.textContent = original; }, 1800);
-        })
-        .catch(err => {
-            console.error("Copy failed", err);
-            alert("Could not copy automatically.\n\nHere is the text:\n" + output);
-        });
+    navigator.clipboard.writeText(output).then(() => {
+        const orig = copyButton.textContent;
+        copyButton.textContent = "Copied!";
+        setTimeout(() => copyButton.textContent = orig, 1800);
+    }).catch(err => {
+        alert("Copy failed\n\n" + output);
+    });
 });
 </script>
 </body>
