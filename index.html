@@ -170,10 +170,10 @@
 
 <script>
 const PARTY_NAMES = [
-    ["Perszing", "Zouri - Tourist", "Agabun", "_awa_", "lxi_lxzn", "try2tank"],
-    ["Katherelia", "Azurablood", "Connorz", "AriaStarsXnico", "RedViper", "Sorrow"],
-    ["Iceplay", "duuko", "Kushheart", "Welgian", "RobeGin", "Vamadov"],
-    ["Janez", "Kalli", "Ceyshh", "MoyMayKusaaay", "Freakuencyy", "SungyTheShadow"],
+    ["Try2tank", "MrLutzu", "Quanchi", "Azurablood", "Katherelia", "DPS/Yonko"],
+    ["Senti", "Moy", "Frequency", "Pyrvana", "Sungyshadow", "Schandour"],
+    ["Boobienator", "Ceyslh", "Zenaj", "Kallikantzaros", "Raijinzen", "-"],
+    ["Welgian", "Mara", "RobeGin", "omgdnzz", "Cirannon", "Vamadov"],
     [], []
 ];
 
@@ -188,7 +188,7 @@ let selectedPlayer = null; // for mobile tap mode
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // ── Create parties + slots ────────────────────────────────────────────────
-for (let p = 0; p < 6; p++) {
+for (let p = 0; p < 10; p++) {
     const party = document.createElement("div");
     party.className = "party";
     
@@ -388,3 +388,4 @@ copyButton.addEventListener("click", () => {
 </script>
 </body>
 </html>
+
