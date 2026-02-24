@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Raid Planner – Perfect Nameplates with Copy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Raid Planner – Perfect Nameplates</title>
 <style>
     body {
         margin: 0;
@@ -161,6 +162,9 @@
     <button id="copyButton">Copy Raid Setup</button>
 </div>
 
+<!-- Polyfill to make HTML5 drag & drop work better on mobile/touch devices -->
+<script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.3.1/DragDropTouch.min.js"></script>
+
 <script>
 const PARTY_NAMES = [
     ["Perszing", "Zouri - Tourist", "Agabun", "_awa_", "lxi_lxzn", "try2tank"],
@@ -177,7 +181,7 @@ const copyButton = document.getElementById("copyButton");
 
 let draggedPlayer = null;
 
-// Create parties + slots
+// Create parties + slots with permanent ghosts
 for (let p = 0; p < 6; p++) {
     const party = document.createElement("div");
     party.className = "party";
@@ -238,7 +242,7 @@ for (let p = 0; p < 6; p++) {
     partyArea.appendChild(party);
 }
 
-// Bottom drop zone
+// Bottom drop zone – return to list
 playerArea.addEventListener("dragover", e => e.preventDefault());
 playerArea.addEventListener("drop", e => {
     e.preventDefault();
@@ -254,7 +258,7 @@ playerArea.addEventListener("drop", e => {
     draggedPlayer = null;
 });
 
-// Generate players
+// Generate players from textarea
 function generatePlayers() {
     playerArea.innerHTML = "";
     const text = inputBox.value.trim();
@@ -288,7 +292,7 @@ function generatePlayers() {
 
 inputBox.addEventListener("input", generatePlayers);
 
-// Copy button logic
+// Copy only actually placed players (ignores ghosts)
 copyButton.addEventListener("click", () => {
     const parties = document.querySelectorAll(".party");
     let output = "";
@@ -298,35 +302,36 @@ copyButton.addEventListener("click", () => {
         output += `Party ${partyNum}:\n`;
 
         const slots = party.querySelectorAll(".slot");
+        let hasAny = false;
+
         slots.forEach(slot => {
             const player = slot.querySelector(".player.in-slot");
             if (player) {
                 output += player.textContent.trim() + "\n";
+                hasAny = true;
             } else {
-                // fallback to ghost
-                const ghost = slot.querySelector(".ghost");
-                if (ghost && ghost.textContent !== "—") {
-                    output += ghost.textContent.trim() + "\n";
-                } else {
-                    output += "—\n";  // or leave empty line: output += "\n"
-                }
+                output += "\n";  // empty line for unfilled slots
             }
         });
 
-        output += "\n";  // empty line between parties
+        if (hasAny) {
+            output += "\n";
+        } else {
+            output += "— empty —\n\n";
+        }
     });
 
-    // Remove trailing empty lines if you want
     output = output.trimEnd();
 
     navigator.clipboard.writeText(output)
         .then(() => {
+            const original = copyButton.textContent;
             copyButton.textContent = "Copied!";
-            setTimeout(() => { copyButton.textContent = "Copy Raid Setup"; }, 1800);
+            setTimeout(() => { copyButton.textContent = original; }, 1800);
         })
         .catch(err => {
             console.error("Copy failed", err);
-            alert("Could not copy to clipboard.\n\n" + output);
+            alert("Could not copy automatically.\n\nHere is the text:\n" + output);
         });
 });
 </script>
